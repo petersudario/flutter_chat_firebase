@@ -1,4 +1,4 @@
-package com.petersudario.chat.flutter_chat_firebase
+package com.petersudario.chat
 
 import io.flutter.embedding.android.FlutterActivity
 
