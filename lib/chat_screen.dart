@@ -9,6 +9,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:image_picker/image_picker.dart';
 
+import 'chat_message.dart';
+
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -19,13 +21,16 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   GoogleSignIn googleSignIn = GoogleSignIn();
   User? _currentUser;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
 
     FirebaseAuth.instance.authStateChanges().listen((user) {
-      _currentUser = user;
+      setState(() {
+        _currentUser = user;
+      });
     });
   }
 
@@ -36,11 +41,11 @@ class _ChatScreenState extends State<ChatScreen> {
       final credential = GoogleAuthProvider.credential(
           accessToken: gAuth.accessToken, idToken: gAuth.idToken);
 
-      final UserCredential authResult = await FirebaseAuth.instance.signInWithCredential(credential);
+      final UserCredential authResult =
+          await FirebaseAuth.instance.signInWithCredential(credential);
       final User? user = authResult.user;
 
       return user;
-
     } catch (error) {
       if (kDebugMode) {
         print('COULD NOT LOGIN');
@@ -62,22 +67,30 @@ class _ChatScreenState extends State<ChatScreen> {
       "uid": user?.uid,
       "senderName": user?.displayName,
       "senderPhotoUrl": user?.photoURL,
+      "datetime": Timestamp.now(),
     };
 
     final String imageUrl;
-    Reference referenceRoot = FirebaseStorage.instance.ref();
-    Reference referenceDir = referenceRoot.child('images');
 
     if (imgFile != null) {
       String fileName = DateTime.now().millisecondsSinceEpoch.toString();
 
       try {
-        Reference referenceImage = referenceDir.child('$fileName.png');
-        await referenceImage.putFile(File(imgFile.path));
+        UploadTask task = FirebaseStorage.instance.ref().child('images').child('$fileName.png').putFile(File(imgFile.path));
 
-        imageUrl = await referenceImage.getDownloadURL();
+        setState(() {
+          _isLoading = true;
+        });
+
+        TaskSnapshot taskSnapshot = await task.whenComplete(() => null);
+
+        imageUrl = await taskSnapshot.ref.getDownloadURL();
 
         data['imgUrl'] = imageUrl;
+
+        setState(() {
+          _isLoading = false;
+        });
       } catch (error) {
         if (kDebugMode) {
           print(error);
@@ -93,19 +106,37 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Olá',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          _currentUser != null
+              ? 'Olá, ${_currentUser?.displayName}.'
+              : 'PearlChat - Você não está logado.',
+          style: const TextStyle(color: Colors.white, fontSize: 15),
         ),
         backgroundColor: Colors.blue,
         elevation: 0,
+        actions: <Widget>[
+          _currentUser != null
+              ? IconButton(
+                  icon: const Icon(
+                    Icons.exit_to_app,
+                    color: Colors.white,
+                  ),
+                  onPressed: () {
+                    FirebaseAuth.instance.signOut();
+                    googleSignIn.signOut();
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text("Você deslogou com sucesso!")));
+                  },
+                )
+              : Container()
+        ],
       ),
       body: Column(
         children: <Widget>[
           Expanded(
               child: StreamBuilder<QuerySnapshot>(
             stream:
-                FirebaseFirestore.instance.collection('messages').snapshots(),
+                FirebaseFirestore.instance.collection('messages').orderBy('datetime').snapshots(),
             builder: (context, snapshot) {
               switch (snapshot.connectionState) {
                 case ConnectionState.none:
@@ -121,13 +152,14 @@ class _ChatScreenState extends State<ChatScreen> {
                       itemCount: documents.length,
                       reverse: true,
                       itemBuilder: (context, index) {
-                        return ListTile(
-                          title: Text(documents[index].get('text').toString()),
-                        );
+                        return ChatMessage(
+                            documents[index].data() as Map<String, dynamic>,
+                            documents[index].get('uid') == _currentUser?.uid);
                       });
               }
             },
           )),
+          _isLoading ? const LinearProgressIndicator() : Container(),
           TextComposer(_sendMessage),
         ],
       ),
