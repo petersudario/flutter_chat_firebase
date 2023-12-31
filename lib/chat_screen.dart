@@ -76,16 +76,14 @@ class _ChatScreenState extends State<ChatScreen> {
       String fileName = DateTime.now().millisecondsSinceEpoch.toString();
 
       try {
-        UploadTask task = FirebaseStorage.instance.ref().child('images').child('$fileName.png').putFile(File(imgFile.path));
+        UploadTask task = FirebaseStorage.instance.ref().child('images').child('${user!.uid}_$fileName.png').putFile(File(imgFile.path));
 
         setState(() {
           _isLoading = true;
         });
 
         TaskSnapshot taskSnapshot = await task.whenComplete(() => null);
-
         imageUrl = await taskSnapshot.ref.getDownloadURL();
-
         data['imgUrl'] = imageUrl;
 
         setState(() {
