@@ -6,6 +6,8 @@ v1.0.0 Released
 
 # Requirements
 
+> Android Studio with a configured device (physical or virtual). Recommended a physical one for better performance and immersion.
+
 > Flutter 3.16.5 • channel stable • https://github.com/flutter/flutter.git
 
 > Framework • revision 78666c8dc5 (12 days ago) • 2023-12-19 16:14:14 -0800
